@@ -1,8 +1,13 @@
-import datetime
+from datetime import datetime
 from zoneinfo import ZoneInfo
 from google.adk.agents import Agent
+from typing import List
 
-
+from .domain.repository.RepositoriesImpl import RepositoriesImpl
+from .controller.GitHubController import GitHubController
+from .constants import global_constants
+from .domain.model.GitHubRepo import GitHubRepo
+from .agent_descriptions.agent_repositories_description import github_repositories_description
 
 names = ["anne", "phil","morgan","matthew","john", "mathilda"]
 
@@ -57,15 +62,44 @@ def check_gender(name: str) -> dict:
             "error_message": f"{name} is not available."
         }
 
+def get_repositories(user: str) -> dict:
+    repository = RepositoriesImpl([])  # Initialize with empty list
+    controller = GitHubController(repository)
+    result_repos = []
+    
+    # Get repositories for the user
+    repos = controller.get_user_repositories(user)
+    if repos:
+        result_repos.extend(repos)
+
+    language_type = analyze_repositories(result_repos)
+
+    return {
+        "status": "success",
+        "report": language_type
+    }
+        
+def analyze_repositories(result_repos: List[GitHubRepo]) -> dict:
+    language_type = {
+        "python": 0,
+        "kotlin": 0,
+        "java": 0,
+    }
+    if result_repos:  # Changed from 'is not empty' to proper Python syntax
+        for repo in result_repos:
+            if repo.language and repo.language.lower() in language_type:  # Added .lower() for case insensitive comparison
+                language_type[repo.language.lower()] += 1
+    return language_type
+
+
+
 
 root_agent = Agent(
     name="family_member_agent",
     model="gemini-2.0-flash-exp",
-    description=(
-        "Agent to answer questions about the family members."
+    description = github_repositories_description,
+    instruction = (
+        "Search in the repositories the type of language used in them"
     ),
-    instruction=(
-        "I can answer your questions about the family members."
-    ),
-    tools=[check_name, check_gender],
+    tools=[get_repositories],
 )
